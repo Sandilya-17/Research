@@ -1,0 +1,36 @@
+{
+  "train_targets": [
+    "0000",
+    "0011",
+    "0101",
+    "0110",
+    "1001",
+    "1010",
+    "1100",
+    "1111",
+    "0001",
+    "1110"
+  ],
+  "test_targets": [
+    "1011",
+    "0100",
+    "1101"
+  ],
+  "noise_levels_train": [
+    0.02,
+    0.052,
+    0.084,
+    0.116,
+    0.148,
+    0.18
+  ],
+  "reps_per_cell": 15,
+  "test_noise_level": 0.1,
+  "n_eval_seeds": 20,
+  "n_qubits": 4,
+  "training_set_shape": [
+    900,
+    18
+  ],
+  "unique_label_rows": 10
+}

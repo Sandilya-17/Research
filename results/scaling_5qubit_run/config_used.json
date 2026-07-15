@@ -1,0 +1,30 @@
+{
+  "n_qubits": 5,
+  "n_outcomes": 32,
+  "train_targets": [
+    "00000",
+    "01010",
+    "10101",
+    "11111",
+    "00110",
+    "11001"
+  ],
+  "test_targets": [
+    "10011",
+    "01101"
+  ],
+  "noise_levels_train": [
+    0.02,
+    0.0733,
+    0.1267,
+    0.18
+  ],
+  "reps_per_cell": 10,
+  "test_noise_level": 0.1,
+  "n_eval_seeds": 10,
+  "training_set_shape": [
+    240,
+    34
+  ],
+  "samples_per_label_dim": 7.5
+}
