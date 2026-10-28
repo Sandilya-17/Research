@@ -1,6 +1,6 @@
 # v2 Revision — Findings Report
 
-This report documents what changed in the code (`v2/`) relative to the
+This report documents what changed in the code (repository root) relative to the
 original submission (`v1_original/`, kept for reference), what the four
 requested fixes actually found, and what that means for the paper.
 

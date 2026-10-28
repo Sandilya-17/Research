@@ -6,6 +6,32 @@ original headline result does not survive a genuine held-out test; ZNE
 alone outperforms the learned pipeline once the label-degeneracy bug is
 fixed).
 
+## Paper
+
+*Label Degeneracy and Label Leakage in Learned Quantum Error Mitigation: A Corrected Evaluation of a Hybrid ML+VQE Pipeline for Grover Search* — full text in [`paper/Label_Degeneracy_Leakage_Learned_QEM_v2.pdf`](paper/Label_Degeneracy_Leakage_Learned_QEM_v2.pdf). Citation: see [`CITATION.cff`](CITATION.cff).
+
+## Headline result (4 qubits, λ = 0.10, mean ± sd over 3 held-out targets × 20 seeds)
+
+| Method | Fidelity ↑ |
+|---|---|
+| Noisy (no mitigation) | 0.758 ± 0.026 |
+| ZNE | 0.879 ± 0.017 |
+| Best learned variant (ensemble, no VQE) | 0.690 ± 0.005 |
+
+## Where each paper result comes from
+
+| Paper item | File |
+|---|---|
+| Table 1 (4-qubit pooled) | `results/main_4qubit_run/summary_pooled_mean_std.csv` |
+| Table 2 (per-target) | `results/main_4qubit_run/summary_per_target_mean_std.csv` |
+| Figure 2 | `results/main_4qubit_run/pooled_comparison.png` |
+| Table 3 (5-qubit) | `results/scaling_5qubit_run/summary_pooled_mean_std.csv` |
+| Figure 3 | `results/scaling_5qubit_run/pooled_comparison.png` |
+| Appendix A configs | `results/*/config_used.json` |
+| Raw trials | `raw_eval_records.csv` in each folder (load with `dtype={"target": str}`) |
+
+The `run_v2_20260715_*` and `run_scaling_v2_20260715_*` folders are not cited in the paper.
+
 ## Contents
 
 - `V2_FINDINGS.md` — full write-up of the four requested fixes and results.
