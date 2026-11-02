@@ -1,1 +1,16 @@
 __pycache__/
+*.pyc
+.pytest_cache/
+data/
+data_quick/
+results_quick/
+run_full.log
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.bbl
+paper/*.blg
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
+.venv/

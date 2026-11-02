@@ -1,0 +1,27 @@
+\begin{tabular}{lcccc}
+\toprule
+Method & 4q extrap & 4q interp & 5q extrap & 5q interp \\
+\midrule
+Raw (unmitigated) & 0.869 & 0.948 & 0.866 & 0.935 \\
+REM & 0.898 & 0.964 & 0.885 & 0.949 \\
+ZNE linear (1,3) & 0.892 & 0.968 & 0.878 & 0.953 \\
+ZNE linear (1,3,5) & 0.876 & 0.960 & 0.870 & 0.945 \\
+ZNE Richardson & 0.903 & 0.973 & 0.883 & 0.956 \\
+REM+ZNE linear (1,3) & 0.925 & 0.983 & 0.898 & 0.965 \\
+REM+ZNE linear (1,3,5) & 0.906 & 0.975 & 0.889 & 0.958 \\
+REM+ZNE Richardson & 0.935 & 0.984 & 0.895 & 0.963 \\
+\midrule
+
+Direct RF (original design) & 0.872 & 0.897 & 0.854 & 0.873 \\
+Direct MLP (original design) & 0.932 & 0.950 & 0.863 & 0.875 \\
+Residual ridge & 0.943 & 0.982 & 0.898 & 0.962 \\
+Residual RF & 0.944 & 0.985 & \textbf{0.900} & 0.964 \\
+Residual MLP & 0.945 & 0.978 & 0.878 & 0.945 \\
+Residual ridge + canon. & \textbf{0.962} & \textbf{0.989} & 0.895 & 0.979 \\
+Residual RF + canon. & 0.958 & 0.986 & 0.899 & \textbf{0.981} \\
+Residual MLP + canon. & 0.962 & 0.984 & 0.880 & 0.971 \\
+Training-mean (canon.) & 0.873 & 0.875 & 0.839 & 0.875 \\
+\midrule
+
+\bottomrule
+\end{tabular}

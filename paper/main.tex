@@ -1,0 +1,164 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,booktabs,longtable,graphicx,array}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption}
+\input{numbers}
+\newcommand{\F}{\mathcal{F}}
+\title{When Does Machine Learning Beat Zero-Noise Extrapolation?\\
+A Leak-Free Benchmark of Learned Error Mitigation on Small Quantum Circuits}
+\author{P.V.\ Sai Sandilya, Sk Nagur Valli, G Shanmukh Reddy\\
+\small Under the guidance of Dr.\ S.\ Sagar Imambi\\
+\small Department of Computer Science and Engineering, KL University, Guntur, India}
+\date{}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Learned error mitigation trains a regression model to map noisy measurement statistics to ideal ones, and it is easy to make such a model look better than it is. We present a leak-free benchmark protocol and use it to re-evaluate a hybrid random-forest/MLP/VQE pipeline that we previously reported with large gains. The earlier design trained on one circuit with one fixed simulator seed (every training label was identical) and tuned its ensemble weight with the ground truth; we show that a leak-free version of that design (``direct'' regression, without the VQE feature that our earlier revision found uninformative) is significantly worse than conventional readout-error mitigation plus zero-noise extrapolation (ZNE) in nearly every condition. We then study two modifications that respect what is available at inference time: residual learning on top of a REM+ZNE estimate, and a canonicalisation that re-labels bit-strings by XOR with the dominant measured outcome. On three circuit families (Grover, QAOA, random circuits) at four and five qubits, with disjoint train/test circuits, four evaluation schemes (held-out circuits, leave-one-family-out, heterogeneous-noise shift, and a calibrated fake IBM device), paired bootstrap intervals and Holm-corrected Wilcoxon tests, the residual+canonical random forest beats the best conventional baseline on held-out circuits in \stat{A}{ALL}{ALL}{RFC}{pos} of \stat{A}{ALL}{ALL}{RFC}{tot} (qubit-count, noise-regime) cells (e.g.\ $\Delta\F=\stat{A}{4}{extrap}{RFC}{diff}$ under extrapolated noise at four qubits), and in \stat{C}{ALL}{ALL}{RFC}{pos} of \stat{C}{ALL}{ALL}{RFC}{tot} under heterogeneous-noise shift. However, the gain does not transfer to unseen circuit families (significant in only \stat{B}{ALL}{ALL}{RFC}{pos} of \stat{B}{ALL}{ALL}{RFC}{tot} cells) and is not significant on the calibrated fake device. Learned mitigation can therefore help when training and test circuits share structure, but claims of general superiority over ZNE are not supported. We release code, data and a reporting checklist.
+\end{abstract}
+
+\section{Introduction}
+Noise limits what near-term quantum processors can compute, and error \emph{mitigation} reduces its effect on estimated outputs using extra circuit executions and classical post-processing rather than error-correcting codes \citep{temme2017,li2017,cai2023}. Model-based methods such as zero-noise extrapolation (ZNE) \citep{temme2017,kandala2019,giurgicatiron2020} and readout-error mitigation (REM) \citep{bravyi2021} need no training data. \emph{Learned} methods instead fit a regression model that maps noisy outputs, and possibly circuit or device descriptors, to ideal outputs; Clifford data regression \citep{czarnik2021} and learning-based mitigation \citep{strikis2021} are prominent examples.
+
+Learned mitigation is easy to evaluate badly. Data leakage and weak splits are a general source of overstated results in machine-learning-based science \citep{kapoor2023}, and quantum circuits add specific traps: a model can be trained and tested on the same circuit, labels can be degenerate, and quantities that are unknown on a real device can enter inference. We know of these traps first-hand. An earlier version of our own work reported that a random forest/MLP ensemble with a variational-eigensolver feature raised Grover-search fidelity from 0.74 to 0.99. Re-examination showed that all 400 training labels were the same vector (one circuit, one fixed simulator seed), that the ensemble weight was computed from the true ideal distribution, and that the VQE feature was independent of the noise level.
+
+This paper turns that experience into a reusable benchmark. Our contributions are:
+\begin{enumerate}
+\item A \textbf{leak-free protocol} with exact (statevector) labels, disjoint train/test circuits and marked states, held-out noise regimes (seen, interpolated, extrapolated), and four evaluation schemes that probe increasing distribution shift (Section~\ref{sec:protocol}).
+\item A \textbf{strong conventional baseline set} (REM, three ZNE extrapolators, and their combinations), with the best one chosen \emph{post hoc on the test cell}, which is conservative against the learned methods.
+\item An \textbf{ablation of learned designs}: the original ``direct'' design, residual learning on a ZNE estimate, and XOR canonicalisation of the output space, with RF, MLP and ridge regressors.
+\item \textbf{Results} with paired statistics and a clear negative finding on generalisation across circuit families, together with an inference-time reporting checklist (Appendix~\ref{app:checklist}).
+\end{enumerate}
+
+\section{Related work}
+\paragraph{Mitigation without error correction.} ZNE amplifies noise (here by gate folding \citep{giurgicatiron2020}) and extrapolates to zero noise \citep{temme2017,li2017,kandala2019}; REM inverts a calibrated assignment matrix \citep{bravyi2021}. \citet{cai2023} review the field.
+\paragraph{Learned mitigation.} Clifford data regression fits a regression on near-Clifford circuits that can be simulated classically and applies it to the target circuit \citep{czarnik2021}; \citet{strikis2021} study learning-based mitigation with training circuits related to the target circuit. Our setting differs in that the model outputs a full probability distribution and is tested on unseen circuits and unseen circuit families.
+\paragraph{Evaluation hygiene.} \citet{kapoor2023} catalogue leakage in applied machine learning. We apply the same discipline to quantum mitigation: no information about the test circuit's ideal output enters inference, and statistics treat circuits, not repeated shots, as the unit of replication.
+
+\section{Benchmark and protocol}\label{sec:protocol}
+\subsection{Circuits and labels}
+We use three families on $n\in\{4,5\}$ qubits: single-iteration \textbf{Grover} search \citep{grover1996} with all $2^n$ marked states split 50/50 into disjoint train and test targets; depth-two \textbf{QAOA} \citep{farhi2014} on random graphs (a ring plus random chords) with random angles; and depth-8 \textbf{random} circuits with Haar-random single-qubit gates and brickwork CNOTs. For QAOA and random circuits, 40 circuits are used for training and 20 (drawn from a disjoint random stream) for testing; Grover uses $2^{n-1}$ training and $2^{n-1}$ test circuits. Circuits are transpiled to the basis $\{\mathrm{rz},\mathrm{sx},\mathrm{x},\mathrm{cx}\}$. \textbf{Labels are exact} statevector probabilities, so label diversity cannot be destroyed by a fixed sampler seed (a unit test asserts that training labels are all distinct).
+
+\subsection{Noise}
+Noisy executions use Qiskit Aer \citep{qiskit2024} with density-matrix simulation, 4096 shots, and a noise \emph{scale} $s$ multiplying all error rates. At $s=1$: 1-qubit depolarising $2\times10^{-3}$ and amplitude damping $2\times10^{-3}$ on $\mathrm{sx},\mathrm{x}$; CNOT depolarising $2.5\times10^{-2}$; readout flips $P(1|0)=0.02$, $P(0|1)=0.04$. Training uses $s\in\{0.5,1,1.5,2\}$. Test circuits are run at the training scales (\emph{train} regime), at $s\in\{0.75,1.25\}$ (\emph{interp}) and at $s=2.5$ (\emph{extrap}), with two shot-noise repetitions each. Three noise \emph{profiles} are used:
+\begin{itemize}
+\item \textbf{uniform}: the model above (training and schemes A, B);
+\item \textbf{hetero}: per-qubit and per-edge log-normal rate spread ($\sigma=0.5$) and a coherent $\mathrm{sx}$ over-rotation of $0.02s$ rad, used only for testing (scheme C);
+\item \textbf{fake device}: the calibration snapshot of \texttt{FakeManilaV2} from \texttt{qiskit-ibm-runtime} (T$_1$/T$_2$, gate and readout errors, linear connectivity with SWAP routing), used only for testing (scheme D).
+\end{itemize}
+
+\subsection{Conventional baselines}
+For each circuit, the circuit is run with every CNOT replaced by 1, 3 and 5 CNOTs (folding factors $x=1,3,5$). Baselines: \textbf{raw}; \textbf{REM} (tensored per-qubit assignment matrices calibrated from all-0/all-1 circuits at the same noise scale); \textbf{ZNE} with linear extrapolation from $x\in\{1,3\}$, least-squares linear over $\{1,3,5\}$, or Richardson (quadratic through all three); and each ZNE variant applied after REM. Extrapolation is applied to every entry of the probability vector, followed by clipping and renormalisation. Within each result cell the \emph{best} conventional baseline (highest mean fidelity \emph{on the test cell}) is used as the comparator; this advantages the baselines.
+
+\subsection{Learned mitigators}
+All learned models see only quantities available on a device: the measured distributions at the three folding factors, a readout-error summary from the calibration circuits, and the CNOT count and depth. No noise scale and no ideal output are used at inference.
+\begin{itemize}
+\item \textbf{Direct} (original design): regress the ideal distribution from the raw noisy distribution (random forest or MLP).
+\item \textbf{Residual}: regress $p_{\text{ideal}}-p_{\text{base}}$ from the REM'd distributions at all three folds, where the base is the REM+ZNE variant with the best \emph{training} fidelity (leak-free model selection). Ridge, RF and MLP regressors.
+\item \textbf{Canonical} ($+$canon.): bit-strings are re-labelled by XOR with the index of the largest REM'd measured probability, so each circuit's dominant outcome maps to index 0; features, base and labels are transformed, and predictions are mapped back. This uses the translation symmetry of the output space and only measured data.
+\item \textbf{Training-mean} (canonical): predicts the mean canonical ideal distribution; a sanity floor.
+\end{itemize}
+RF: 200 trees, min leaf 2; MLP: (128,64), early stopping; ridge: cross-validated penalty. Predictions are clipped and renormalised. Hyper-parameters were fixed before the final run and not tuned on test data.
+
+\subsection{Evaluation schemes}
+\textbf{A} (held-out circuits): train on all training circuits (all families), test on unseen circuits and unseen Grover marked states. \textbf{B} (leave-one-family-out): train on two families, test on the third. \textbf{C} (device shift): train as in A, test under the hetero profile. \textbf{D} (calibrated fake device): train as in A, test on \texttt{FakeManilaV2}. Models are trained separately for each $n$.
+
+\subsection{Metrics and statistics}
+The main metric is Hellinger fidelity $\F(p,q)=(\sum_i\sqrt{p_iq_i})^2$ to the exact distribution; total-variation distance and the marked-state probability for Grover are also stored. For each cell (scheme, $n$, regime) values are averaged over scales and repetitions \emph{per circuit}, and learned methods are compared with the best conventional baseline by paired differences over circuits: mean $\Delta\F$ with a 95\% percentile bootstrap interval ($10^4$ resamples), a two-sided Wilcoxon signed-rank test, and Holm correction across all \ntests{} comparisons reported (train-regime cells excluded). We also report the win rate (fraction of circuits improved) and the infidelity reduction $1-(1-\F_m)/(1-\F_{\text{raw}})$.
+
+\section{Results}
+Table~\ref{tab:A} and Figure~\ref{fig:scale} give mean fidelities; Figure~\ref{fig:schemes} summarises paired differences against the best conventional baseline; Appendix~\ref{app:stats} lists all paired statistics. The experiment comprises \nrows{} method-level evaluations.
+
+\begin{table}[t]\centering\small
+\caption{Scheme A (held-out circuits): mean Hellinger fidelity over test circuits of all families. Bold: best in column.}\label{tab:A}
+\resizebox{\linewidth}{!}{\input{tables/fid_A}}
+\end{table}
+\begin{figure}[t]\centering
+\includegraphics[width=0.9\linewidth]{figures/fig_scale}
+\caption{Fidelity versus noise scale (scheme A). The grey band marks training scales; $s=0.75, 1.25$ are interpolated and $s=2.5$ is extrapolated.}\label{fig:scale}
+\end{figure}
+
+\paragraph{The original ``direct'' design fails.}
+The leak-free direct regressors are significantly worse than the best conventional baseline in \stat{A}{ALL}{ALL}{DRF}{neg} of \stat{A}{ALL}{ALL}{DRF}{tot} (RF) and \stat{A}{ALL}{ALL}{DML}{neg} of \stat{A}{ALL}{ALL}{DML}{tot} (MLP) cells of scheme A, in every cell of scheme B, and in \stat{C}{ALL}{ALL}{DRF}{neg} and \stat{C}{ALL}{ALL}{DML}{neg} of \stat{C}{ALL}{ALL}{DRF}{tot} cells of scheme C (RF and MLP). For example, at four qubits with interpolated noise the direct RF reaches $\F=\stat{A}{4}{interp}{DRF}{F}$ against $\stat{A}{4}{interp}{RAW}{F}$ for the unmitigated output. The direct design has to reproduce an entire distribution from its noisy version and, with a few hundred training circuits, may end up closer to a smoothed prior than to the measured data (we did not test this explanation). The result is consistent with our earlier finding that the reported 0.99 fidelity was an artefact.
+
+\paragraph{Residual learning with canonicalisation helps on held-out circuits.}
+In scheme A the residual RF with canonicalisation significantly outperforms the best conventional baseline (\stat{A}{4}{interp}{BEST}{name} at four qubits) at four qubits under interpolated noise ($\F=\stat{A}{4}{interp}{RFC}{F}$ vs.\ $\stat{A}{4}{interp}{BEST}{F}$, $\Delta\F=\stat{A}{4}{interp}{RFC}{diff}$, 95\% CI [\stat{A}{4}{interp}{RFC}{lo}, \stat{A}{4}{interp}{RFC}{hi}], $p_{\text{Holm}}\,\stat{A}{4}{interp}{RFC}{p}$, wins on \stat{A}{4}{interp}{RFC}{win}\% of circuits) and under extrapolated noise ($\Delta\F=\stat{A}{4}{extrap}{RFC}{diff}$ [\stat{A}{4}{extrap}{RFC}{lo}, \stat{A}{4}{extrap}{RFC}{hi}]). At five qubits the gain is $\Delta\F=\stat{A}{5}{interp}{RFC}{diff}$ [\stat{A}{5}{interp}{RFC}{lo}, \stat{A}{5}{interp}{RFC}{hi}] for interpolated noise and not significant for extrapolated noise ($\Delta\F=\stat{A}{5}{extrap}{RFC}{diff}$). Residual ridge with canonicalisation behaves similarly (significant in \stat{A}{ALL}{ALL}{RGC}{pos} of \stat{A}{ALL}{ALL}{RGC}{tot} cells). Because the raw fidelity is already high at moderate noise, differences in $\F$ are small in absolute terms; the infidelity reduction relative to raw is \stat{A}{4}{interp}{RFC}{ired}\% for the learned model against \stat{A}{4}{interp}{BEST}{ired}\% for the best baseline (four qubits, interpolated) and \stat{A}{4}{extrap}{RFC}{ired}\% against \stat{A}{4}{extrap}{BEST}{ired}\% under extrapolated noise. Without canonicalisation the residual RF is significant in only \stat{A}{ALL}{ALL}{RF}{pos} of \stat{A}{ALL}{ALL}{RF}{tot} cells after Holm correction (e.g.\ $\Delta\F=\stat{A}{4}{interp}{RF}{diff}$, $p_{\text{Holm}}=\stat{A}{4}{interp}{RF}{p}$ at four qubits, interpolated), so both components appear to matter.
+
+\paragraph{Grover success probability.}
+For held-out marked states with interpolated noise, the ideal success probability is \stat{G}{4}{IDEAL}{x}{F} at four qubits; the unmitigated output gives \stat{G}{4}{RAW}{x}{F}, REM+ZNE Richardson \stat{G}{4}{ZNE}{x}{F}, and the residual RF with canonicalisation \stat{G}{4}{RFC}{x}{F}. At five qubits the values are \stat{G}{5}{RAW}{x}{F} (raw), \stat{G}{5}{ZNE}{x}{F} (ZNE) and \stat{G}{5}{RFC}{x}{F} (learned) against an ideal \stat{G}{5}{IDEAL}{x}{F}. At four qubits the canonical ridge gives \stat{G}{4}{RGC}{x}{F}, above the ideal value, which indicates over-sharpening toward the family prior rather than recovery of the specific circuit's distribution.
+
+\begin{figure}[t]\centering
+\includegraphics[width=\linewidth]{figures/fig_schemes}
+\caption{Paired difference in fidelity ($\Delta\F$) between learned methods and the best conventional baseline in each cell, with 95\% bootstrap intervals. Positive is better than the baseline.}\label{fig:schemes}
+\end{figure}
+
+\paragraph{Leave-one-family-out: the gain does not transfer (scheme B).}
+When the test family is absent from training, no learned variant is significantly better than the best baseline in more than one cell: the canonical RF is significant in \stat{B}{ALL}{ALL}{RFC}{pos} of \stat{B}{ALL}{ALL}{RFC}{tot} cells and the canonical ridge is significantly \emph{worse} in \stat{B}{ALL}{ALL}{RGC}{neg} of \stat{B}{ALL}{ALL}{RGC}{tot} cells (Appendix~\ref{app:stats}). The benefit seen in scheme A therefore relies on structural similarity between training and test circuits.
+
+\paragraph{Heterogeneous noise (scheme C).}
+Under per-qubit/per-edge rate spread and coherent errors, never seen in training, the canonical RF remains significantly better than the best baseline in \stat{C}{ALL}{ALL}{RFC}{pos} of \stat{C}{ALL}{ALL}{RFC}{tot} cells, e.g.\ $\Delta\F=\stat{C}{4}{extrap}{RFC}{diff}$ at four qubits with extrapolated noise and $\Delta\F=\stat{C}{5}{interp}{RFC}{diff}$ at five qubits with interpolated noise. Robustness to this synthetic mismatch is not evidence of robustness to real devices, as scheme D shows.
+
+\paragraph{Calibrated fake device (scheme D).}
+On \texttt{FakeManilaV2}, no learned variant significantly beats the best conventional baseline (\stat{D}{ALL}{ALL}{RFC}{pos} of \stat{D}{ALL}{ALL}{RFC}{tot} cells for the canonical RF). At four qubits the canonical RF has a negative point estimate ($\Delta\F=\stat{D}{4}{device}{RFC}{diff}$ [\stat{D}{4}{device}{RFC}{lo}, \stat{D}{4}{device}{RFC}{hi}], $p_{\text{Holm}}=\stat{D}{4}{device}{RFC}{p}$, not significant at the 5\% level) and the canonical ridge is significantly worse. At five qubits the point estimate is positive ($\Delta\F=\stat{D}{5}{device}{RFC}{diff}$ [\stat{D}{5}{device}{RFC}{lo}, \stat{D}{5}{device}{RFC}{hi}]) but the Holm-adjusted test is not significant ($p_{\text{Holm}}=\stat{D}{5}{device}{RFC}{p}$) and only \stat{D}{5}{device}{RFC}{win}\% of circuits improve, so the mean gain is driven by a minority of circuits. Transpilation to the device's linear coupling map changes the CNOT count and depth features and introduces idle-qubit relaxation that the training noise model lacks.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.55\linewidth]{figures/fig_family}
+\caption{Per-family $\Delta\F$ for the canonical residual RF (scheme A, interpolated noise).}\label{fig:family}
+\end{figure}
+
+\section{Discussion}
+\paragraph{What the benchmark shows.} Under a protocol with disjoint circuits, exact labels and no inference-time access to the truth, a learned mitigator can add a small but statistically reliable improvement over a strong conventional baseline, provided it is (i) restricted to correcting a physics-based estimate and (ii) expressed in a frame that removes the label-permutation nuisance. The same data show that the improvement is fragile: it vanishes across circuit families and on a calibrated device model. Per-family results (Figure~\ref{fig:family}, \texttt{results/stats\_per\_family.csv}) show that gains are largest for Grover, whose structure is most regular.
+\paragraph{Why residual and canonical forms help (hypotheses).} Residual targets are small, so a model that learns nothing returns the baseline instead of a smoothed prior. Canonicalisation moves each circuit's dominant outcome to a common index, which multiplies the effective training data for tree and linear models by up to $2^n$ for a symmetry that the circuits approximately share. We did not isolate these mechanisms beyond the ablation reported here.
+\paragraph{Implications.} (a) Reports of learned mitigation should include a conventional baseline set, disjoint train/test circuits and a held-out noise regime. (b) Gains measured within a circuit family should not be extrapolated to other families. (c) Evaluation on calibrated device models, or hardware, is necessary before claiming practical advantage.
+
+\section{Threats to validity and limitations}
+\begin{itemize}
+\item \textbf{Simulation only.} All results use noise models, including the fake-device snapshot, which is an approximation of the device and a single 5-qubit processor. No real-hardware data are reported.
+\item \textbf{Small circuits.} Only 4 and 5 qubits, because output dimension is $2^n$ and density-matrix simulation is used. Scaling of full-distribution regression beyond $\sim 10$ qubits is unaddressed; expectation-value targets would be needed.
+\item \textbf{Best-baseline selection} is made on the test cell, which favours baselines. ZNE uses CNOT folding only; PEC and Clifford data regression are not included.
+\item \textbf{Single model seed.} Uncertainty reflects circuit-level variation, not training randomness. Hyper-parameters were not tuned.
+\item \textbf{Synthetic training noise.} Models are trained only on the uniform synthetic profile. Training on device-calibrated noise could change scheme D.
+\item \textbf{Multiple comparisons.} Holm correction covers \ntests{} comparisons, but the choice of learned variants and regimes was made by us.
+\end{itemize}
+
+\section{Reproducibility}
+Code, configuration, per-record results and this paper are in the repository. \texttt{python scripts/run\_all.py} regenerates all data and results (about five minutes on one CPU core); \texttt{python scripts/make\_report.py} regenerates every table, figure and number in this paper (\texttt{paper/numbers.tex}). All seeds are fixed. Results were produced with Python 3.12, Qiskit 2.6, Qiskit Aer 0.18 and scikit-learn 1.8; other versions may change numbers slightly.
+
+\section{Conclusion}
+A leak-free evaluation overturns the large gains we previously reported for a hybrid ML+VQE pipeline: its direct-regression form is worse than readout mitigation plus ZNE. Residual learning with output-space canonicalisation recovers a small, significant advantage on held-out circuits and under synthetic noise shift, but not across circuit families or on a calibrated device model. We hope the protocol and checklist help make future claims of learned mitigation easier to trust.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\section{Configuration}
+\begin{tabular}{ll}\toprule
+Shots / calibration shots & 4096 / 16384\\
+Folding factors & 1, 3, 5 (CNOT folding)\\
+Qubits & 4, 5\\
+Training scales & 0.5, 1.0, 1.5, 2.0\\
+Test scales (interp / extrap) & 0.75, 1.25 / 2.5\\
+Circuits (train/test) per family & Grover $2^{n-1}$/$2^{n-1}$; QAOA, random 40/20\\
+Repetitions (train / test) & 1 / 2\\
+Fake device & \texttt{FakeManilaV2}\\
+Global seed & 2026\\\bottomrule
+\end{tabular}
+
+\section{Reporting checklist for learned mitigation}\label{app:checklist}
+\begin{enumerate}
+\item Are test circuits (not only noise draws) absent from training? Are Grover-type marked states disjoint?
+\item Do training labels vary? (Count distinct label rows.)
+\item Does anything used at inference depend on the ideal output or on an unknown noise parameter?
+\item Do all input features actually vary with the noise they are meant to capture?
+\item Are conventional baselines (REM, ZNE variants) included and tuned at least as carefully as the learned model?
+\item Is there a held-out noise regime, and a test on a different circuit family?
+\item Are statistics computed per circuit (not per shot), with intervals and multiple-comparison control?
+\item Are code, seeds, configuration and raw per-record results released?
+\end{enumerate}
+
+\section{All paired comparisons}\label{app:stats}
+{\small\input{tables/stats_vs_best}}
+\end{document}

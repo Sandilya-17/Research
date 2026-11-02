@@ -1,0 +1,27 @@
+\begin{tabular}{lcc}
+\toprule
+Method & 4q device & 5q device \\
+\midrule
+Raw (unmitigated) & 0.940 & 0.933 \\
+REM & 0.960 & 0.947 \\
+ZNE linear (1,3) & 0.959 & 0.946 \\
+ZNE linear (1,3,5) & 0.950 & 0.940 \\
+ZNE Richardson & 0.964 & 0.947 \\
+REM+ZNE linear (1,3) & \textbf{0.976} & 0.956 \\
+REM+ZNE linear (1,3,5) & 0.968 & 0.952 \\
+REM+ZNE Richardson & 0.975 & 0.950 \\
+\midrule
+
+Direct RF (original design) & 0.887 & 0.870 \\
+Direct MLP (original design) & 0.888 & 0.865 \\
+Residual ridge & 0.957 & 0.930 \\
+Residual RF & 0.973 & 0.951 \\
+Residual MLP & 0.933 & 0.901 \\
+Residual ridge + canon. & 0.948 & 0.961 \\
+Residual RF + canon. & 0.967 & \textbf{0.973} \\
+Residual MLP + canon. & 0.934 & 0.946 \\
+Training-mean (canon.) & 0.875 & 0.873 \\
+\midrule
+
+\bottomrule
+\end{tabular}

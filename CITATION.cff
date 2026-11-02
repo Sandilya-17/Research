@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this work, please cite it."
-title: "Label Degeneracy and Label Leakage in Learned Quantum Error Mitigation: A Corrected Evaluation of a Hybrid ML+VQE Pipeline for Grover Search"
+title: "qembench: a leak-free benchmark protocol for learned quantum error mitigation"
 authors:
   - family-names: Sai Sandilya
     given-names: P.V.
@@ -8,7 +8,7 @@ authors:
     given-names: Sk
   - family-names: Shanmukh Reddy
     given-names: G
-version: 2.0.0
-date-released: 2026-10-28
+version: 1.0.0
+date-released: 2026-11-02
 repository-code: "https://github.com/Sandilya-17/Research"
 license: MIT
